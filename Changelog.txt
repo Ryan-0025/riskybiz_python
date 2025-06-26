@@ -1,0 +1,66 @@
+Created proper Python scaffold
+Added # Ignore all audio files to .gitignore
+Modified code in download_and_organize.py as follows:
+- Added Error handling with requests.raise_for_status() to catch HTTP issues.
+- Check directory existence for both audio and monthly folders.
+- Changed constants like AUDIO_DIR and SOURCE_URL to all-caps for clarity.
+- Function docstrings explain each method’s role.
+- Better readability for output with clear logging-style messages when downloading.
+
+
+Modified code in play_mp3.py as follows:
+- Modular structure with docstrings for every function.
+- Robust path handling using pathlib over os.path.
+- Error handling and graceful exits.
+- Consistent naming conventions and removal of global where possible.
+
+
+- Added new file in src folder called config.py to hold the path for AUDIO_DIR and AUDIO_ROOT since they share the same value. Better to have this value entered once so that it does not create a problem later when having to enter it multiple times in different files.
+- In both download_and_organize.py and play_mp3.py files, added the following at the top
+from config import AUDIO_DIR
+
+- Removed from play_mp3.py
+# Set the base directory containing year-month subfolders with audio files
+AUDIO_ROOT = Path('./audio_files')
+- Changed all occurrence of AUDIO_ROOT to AUDIO_DIR in play_mp3.py
+
+- Removed from download_and_organize.py
+# Directory where MP3s will be saved
+AUDIO_DIR = './audio_files'
+
+
+- Moved downloaded_files.txt filename to config.py. Added following to config.py
+DOWNLOAD_LOG_FILENAME = 'downloaded_files.txt'
+- Modified download_and_organize.py
+from config import AUDIO_DIR, DOWNLOAD_LOG_FILENAME
+- Removed from download_and_organize.py
+# Log file to remember which files we've already downloaded
+DOWNLOAD_LOG = os.path.join(AUDIO_DIR, 'downloaded_files.txt')
+- Added to download_and_organize.py
+# Log file to remember which files we've already downloaded
+DOWNLOAD_LOG = AUDIO_DIR / DOWNLOAD_LOG_FILENAME
+
+- Decided to update player and downloader scripts to use pathlib to make code cleaner, more readable, and more cross-platform friendly instead of using os.path. 
+Allows us to combine paths using the / operator.
+Call methods like .exists(), .mkdir(), .read_text(), .write_text(), and .open() directly on Path objects.
+
+
+- Moved URL to scrape into config.py. Added following to config.py
+# Webpage containing MP3 files
+SOURCE_URL = "https://risky.biz/risky-business-news/"
+- Removed the SOURCE_URL from download_and_organize.py and added to import statement
+from config import AUDIO_DIR, DOWNLOAD_LOG, SOURCE_URL
+
+
+
+Add duration display when playing file,
+Add command to go back to listen to previous audio file if not 1st file being played
+A tests/ folder with some unit tests / turn it into a testable module with unit tests
+Show list of files inside the available months when chosen before playing the first file
+Add volume control and shuffle/repeat logic.
+Track playback history or allow user-created playlists.
+Make script executable as a CLI tool using argparse / Add CLI arguments (e.g., month selection via command line).
+
+
+Modular structure with docstrings for every function.
+Build a menu interface with curses or a simple GUI using tkinter or PySimpleGUI.
