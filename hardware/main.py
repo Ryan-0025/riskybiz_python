@@ -1,23 +1,18 @@
 from machine import Pin
 from time import sleep
 
-led = Pin(2, Pin.OUT) 
 button = Pin(14, Pin.IN, Pin.PULL_UP)
 
-led_state = False
-prev_button_state = 1
-
+was_pressed = False
 
 while True:
-    button_state = button.value()
-
-
-    if prev_button_state == 1 and button_state == 0:
-        led_state = not led_state
-        led.value(led_state)
-        sleep(0.05)
-
-
-    prev_button_state = button_state
-    sleep(0.01)
+    if button.value() == 0 and not was_pressed:
+        # Button just pressed
+        was_pressed = True
+    elif button.value() == 1 and was_pressed:
+        # Button was released after being pressed
+        print("1")
+        was_pressed = False
+        sleep(0.05)  # Debounce after a full press
     
+    sleep(0.01)  # Avoid busy loop
