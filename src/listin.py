@@ -15,7 +15,7 @@ def main():
             while True:
                 #if ser.in_waiting > 0:
                 if ser.in_waiting != '':
-                    print(ser.in_waiting)
+                    #print(ser.in_waiting)
                     line = ser.readline(1)
                     decoded = line.decode()
 
