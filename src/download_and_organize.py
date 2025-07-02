@@ -1,9 +1,23 @@
 from pathlib import Path
 import requests
 import logging
+import sys
+import subprocess
 from bs4 import BeautifulSoup
-from datetime import datetime
-from config import AUDIO_DIR, DOWNLOAD_LOG, SOURCE_URL
+from config import AUDIO_DIR, DOWNLOAD_LOG, SOURCE_URL, LOG_FILE
+
+# Ensure audio dir exists before logging to it
+AUDIO_DIR.mkdir(parents=True, exist_ok=True)
+
+# Configure logging
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+
+logging.info("=== Script started ===")
 
 def ensure_directory_exists(path: Path):
     """Create directory if it doesn't exist."""
@@ -59,26 +73,43 @@ def download_file(mp3_url: str, target_dir: Path, filename: str):
     except requests.RequestException as e:
         logging.error(f"Could not download {filename}: {e}")
 
-def download_new_mp3s():
-    """Main function to download new MP3s into one directory."""
-    ensure_directory_exists(AUDIO_DIR)
+   
+    
 
-    for mp3_url in get_mp3_links():
-        filename = mp3_url.split('/')[-1]
-        download_file(mp3_url, AUDIO_DIR, filename)
 
-if __name__ == "__main__":
-    download_new_mp3s()
-
-def run_mpc_update(): 
+def run_mpc_update():
+    """Run 'mpc update' to refresh the playlist."""
     try:
         logging.info("Running 'mpc update' to refresh playlist")
         result = subprocess.run(['mpc', 'update'], capture_output=True, text=True, check=True)
-        loging.info(f"'mpc update' output:\n{result.stdout.strip()}")
-    except FileNotFoundError: 
-        logging.error("Command 'mpc' not found. Please install MPC or adjust the script.")
+        logging.info(f"'mpc update' output:\n{result.stdout.strip()}")
+    except FileNotFoundError:
+        logging.warning("Command 'mpc' not found. Install it or disable this step.")
+    except subprocess.CalledProcessError as e:
+        logging.error(f"'mpc update' failed: {e.stderr.strip()}")
+
+
+def main():
+    ensure_directory_exists(AUDIO_DIR)
+    logging.info(f"Target audio directory: {AUDIO_DIR}")
+    logging.info(f"Download log path: {DOWNLOAD_LOG}")
+    logging.info("Fetching MP3 Links...")
+
+    mp3_links = get_mp3_links()
+
+    if not mp3_links:
+        logging.warning("No MP3 links found. Exiting")
+        return
+    
+    for mp3_url in mp3_links:
+        filename = mp3_url.split("/")[-1]
+        download_file(mp3_url, AUDIO_DIR, filename)
+    
+    #run_mpc_update()
 
     
-    #run mpc update after all downloads 
-    run_mpc_update()
 
+    logging.info("=== Script finished successfully ===")
+
+if __name__ == "__main__":
+    main()
