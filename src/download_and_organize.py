@@ -1,5 +1,6 @@
 from pathlib import Path
 import requests
+import logging
 from bs4 import BeautifulSoup
 from datetime import datetime
 from config import AUDIO_DIR, DOWNLOAD_LOG, SOURCE_URL
@@ -25,7 +26,7 @@ def get_mp3_links() -> list[str]:
         response = requests.get(SOURCE_URL)
         response.raise_for_status()
     except requests.RequestException as e:
-        print(f"[ERROR] Failed to fetch webpage: {e}")
+        logging.error(f"Failed to fetch webpage: {e}")
         return []
 
     soup = BeautifulSoup(response.text, 'html.parser')
@@ -36,11 +37,11 @@ def download_file(mp3_url: str, target_dir: Path, filename: str):
     file_path = target_dir / filename
 
     if is_downloaded(filename):
-        print(f"[SKIP] {filename} already logged.")
+        logging.info(f"Skipped (already logged): {filename}")
         return
 
     if file_path.exists():
-        print(f"[SKIP] {filename} already exists.")
+        logging.info(f"Skipped (already exists): {filename}")
         mark_as_downloaded(filename)
         return
 
@@ -52,23 +53,32 @@ def download_file(mp3_url: str, target_dir: Path, filename: str):
             for chunk in response.iter_content(1024):
                 f.write(chunk)
 
-        print(f"[OK] Downloaded: {filename}")
+        logging.info(f"Downloaded: {filename}")
         mark_as_downloaded(filename)
 
     except requests.RequestException as e:
-        print(f"[ERROR] Could not download {filename}: {e}")
+        logging.error(f"Could not download {filename}: {e}")
 
 def download_new_mp3s():
-    """Main function to download new MP3s and organize them."""
+    """Main function to download new MP3s into one directory."""
     ensure_directory_exists(AUDIO_DIR)
-
-    today = datetime.now()
-    month_dir = AUDIO_DIR / today.strftime('%Y-%m')
-    ensure_directory_exists(month_dir)
 
     for mp3_url in get_mp3_links():
         filename = mp3_url.split('/')[-1]
-        download_file(mp3_url, month_dir, filename)
+        download_file(mp3_url, AUDIO_DIR, filename)
 
 if __name__ == "__main__":
     download_new_mp3s()
+
+def run_mpc_update(): 
+    try:
+        logging.info("Running 'mpc update' to refresh playlist")
+        result = subprocess.run(['mpc', 'update'], capture_output=True, text=True, check=True)
+        loging.info(f"'mpc update' output:\n{result.stdout.strip()}")
+    except FileNotFoundError: 
+        logging.error("Command 'mpc' not found. Please install MPC or adjust the script.")
+
+    
+    #run mpc update after all downloads 
+    run_mpc_update()
+
