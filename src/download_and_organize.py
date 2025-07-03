@@ -1,12 +1,19 @@
+import threading
+import time
+import os
+import serial
 from pathlib import Path
 import requests
 import logging
-import sys
 import subprocess
 from bs4 import BeautifulSoup
+import pygame
 from config import AUDIO_DIR, DOWNLOAD_LOG, SOURCE_URL, LOG_FILE
 
-# Ensure audio dir exists before logging to it
+# Initialize pygame mixer once globally
+pygame.mixer.init()
+
+# Ensure audio dir exists
 AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 # Configure logging
@@ -20,22 +27,18 @@ logging.basicConfig(
 logging.info("=== Script started ===")
 
 def ensure_directory_exists(path: Path):
-    """Create directory if it doesn't exist."""
     path.mkdir(parents=True, exist_ok=True)
 
 def is_downloaded(filename: str) -> bool:
-    """Check if the file is already listed in the download log."""
     if not DOWNLOAD_LOG.exists():
         return False
     return filename in DOWNLOAD_LOG.read_text().splitlines()
 
 def mark_as_downloaded(filename: str):
-    """Add filename to the download log."""
     with DOWNLOAD_LOG.open('a') as f:
         f.write(f"{filename}\n")
 
 def get_mp3_links() -> list[str]:
-    """Scrape MP3 file URLs from the source page."""
     try:
         response = requests.get(SOURCE_URL)
         response.raise_for_status()
@@ -47,7 +50,6 @@ def get_mp3_links() -> list[str]:
     return [tag['src'] for tag in soup.find_all('source', {'type': 'audio/mpeg'})]
 
 def download_file(mp3_url: str, target_dir: Path, filename: str):
-    """Download MP3 file to the target folder."""
     file_path = target_dir / filename
 
     if is_downloaded(filename):
@@ -73,43 +75,74 @@ def download_file(mp3_url: str, target_dir: Path, filename: str):
     except requests.RequestException as e:
         logging.error(f"Could not download {filename}: {e}")
 
-   
-    
-
-
-def run_mpc_update():
-    """Run 'mpc update' to refresh the playlist."""
+def play_file(filepath: Path):
     try:
-        logging.info("Running 'mpc update' to refresh playlist")
-        result = subprocess.run(['mpc', 'update'], capture_output=True, text=True, check=True)
-        logging.info(f"'mpc update' output:\n{result.stdout.strip()}")
-    except FileNotFoundError:
-        logging.warning("Command 'mpc' not found. Install it or disable this step.")
-    except subprocess.CalledProcessError as e:
-        logging.error(f"'mpc update' failed: {e.stderr.strip()}")
+        logging.info(f"Playing: {filepath}")
+        pygame.mixer.music.load(str(filepath))
+        pygame.mixer.music.play()
 
+        # Wait until playback finishes before returning
+        while pygame.mixer.music.get_busy():
+            time.sleep(0.1)
 
-def main():
+    except Exception as e:
+        logging.error(f"Playback error for {filepath}: {e}")
+
+def mp3_downloader():
+    logging.info("=== MP3 Downloader Thread Started ===")
     ensure_directory_exists(AUDIO_DIR)
     logging.info(f"Target audio directory: {AUDIO_DIR}")
     logging.info(f"Download log path: {DOWNLOAD_LOG}")
-    logging.info("Fetching MP3 Links...")
 
     mp3_links = get_mp3_links()
-
     if not mp3_links:
-        logging.warning("No MP3 links found. Exiting")
+        logging.warning("No MP3 links found. Exiting MP3 thread.")
         return
-    
+
     for mp3_url in mp3_links:
         filename = mp3_url.split("/")[-1]
         download_file(mp3_url, AUDIO_DIR, filename)
-    
-    #run_mpc_update()
+        play_file(AUDIO_DIR / filename)
 
-    
+    logging.info("=== MP3 Downloader Thread Finished ===")
 
-    logging.info("=== Script finished successfully ===")
+PORT = "/dev/ttyUSB0"
+BAUD = 115200
+
+def serial_listener():
+    try:
+        with serial.Serial(PORT, BAUD, timeout=0.1) as ser:
+            logging.info(f"Connected to {PORT} at {BAUD} baud.")
+            logging.info("Listening for button presses...")
+
+            while True:
+                if ser.in_waiting > 0:
+                    # Read all available bytes, decode, strip whitespace
+                    data = ser.read(ser.in_waiting).decode(errors='ignore').strip()
+
+                    if data:
+                        logging.info(f"Received serial data: {data}")
+                        os.system("amixer sset Master toggle")
+                        logging.info("Master volume toggled via serial input.")
+
+                time.sleep(0.05)  # slight pause to prevent CPU hogging
+
+    except serial.SerialException as e:
+        logging.error(f"Serial error: {e}")
+
+def main():
+    t1 = threading.Thread(target=mp3_downloader, daemon=True)
+    t2 = threading.Thread(target=serial_listener, daemon=True)
+
+    t1.start()
+    t2.start()
+
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted. Exiting...")
 
 if __name__ == "__main__":
     main()
+
